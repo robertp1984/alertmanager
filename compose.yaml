@@ -1,0 +1,13 @@
+name: alertmanager
+
+services:
+
+  # Used only to easily build the Docker image for local testing
+  alertmanager:
+    build:
+      context: ./alertmanager
+      tags:
+        - robertp22/alertmanager:0.35.0
+      args:
+        - VERSION=0.35.0
+    restart: no
