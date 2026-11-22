@@ -6,10 +6,16 @@ A Docker image of [Prometheus Alertmanager](https://github.com/prometheus/alertm
 `debian:trixie-slim` and published to Docker Hub as
 [`robertp22/alertmanager`](https://hub.docker.com/r/robertp22/alertmanager).
 
-On startup the entrypoint renders every `*.tpl` file in `/etc/alertmanager` with `envsubst`
-(e.g. `alertmanager.yml.tpl` → `alertmanager.yml`), replacing `${VAR}` placeholders with
-environment variables. This lets you keep secrets such as Slack webhook URLs or API keys out of the
-config file. Alertmanager is then started with:
+On startup the entrypoint copies the template directory `/etc/alertmanager.tpl` recursively to
+`/etc/alertmanager`:
+
+- `*.tpl` files are rendered with `envsubst` (e.g. `alertmanager.yml.tpl` → `alertmanager.yml`),
+  replacing `${VAR}` placeholders with environment variables and secrets from the optional secrets
+  file (`/secrets`),
+- all other files (e.g. notification templates `*.tmpl`) are copied unchanged.
+
+This lets you keep secrets such as Slack webhook URLs or API keys out of the config files.
+Alertmanager is then started with:
 
 ```
 --config.file=/etc/alertmanager/alertmanager.yml --storage.path=/alertmanager
@@ -32,9 +38,9 @@ docker run -d --name alertmanager -p 9093:9093 robertp22/alertmanager:0.35.0
 
 The AlertManager UI is available at standard URL http://localhost:9093.
 
-### Run with a config template
+### Run with config templates and secrets
 
-1. Create `alertmanager.yml.tpl` with placeholders for environment variables:
+1. Create a template directory, e.g. `config/`, with `alertmanager.yml.tpl` using placeholders:
 
    ```yaml
    route:
@@ -47,20 +53,39 @@ The AlertManager UI is available at standard URL http://localhost:9093.
            channel: '#alerts'
    ```
 
-2. Mount it into `/etc/alertmanager/` and pass the variables:
+   Subdirectories and other files (e.g. `templates/slack.tmpl`) are copied as they are.
+
+2. Create a secrets file, e.g. `secrets`, **outside** the template directory:
+
+   ```
+   # Slack
+   SLACK_WEBHOOK_URL=https://hooks.slack.com/services/SECRET-URL
+   ```
+
+3. Mount both and run:
 
    ```sh
    docker run -d --name alertmanager -p 9093:9093 \
-     -v "$(pwd)/alertmanager.yml.tpl:/etc/alertmanager/alertmanager.yml.tpl:ro" \
-     -e SLACK_WEBHOOK_URL=https://hooks.slack.com/services/SECRET-URL \
+     -v "$(pwd)/config:/etc/alertmanager.tpl:ro" \
+     -v "$(pwd)/secrets:/secrets:ro" \
      robertp22/alertmanager:0.35.0
    ```
 
-   The container logs `Converted file: /etc/alertmanager/alertmanager.yml.tpl` and starts with the
-   rendered `alertmanager.yml`.
+   The container logs `Loading secret from file with key=SLACK_WEBHOOK_URL` and
+   `Rendered: alertmanager.yml.tpl -> alertmanager.yml`, then starts with the rendered config.
 
-> Mount individual files, not the whole `/etc/alertmanager` directory. The container runs as
-> `nobody` and must be able to write the rendered files there.
+
+Instead of a secrets file you can pass variables with `-e`, e.g.
+`-e SLACK_WEBHOOK_URL=https://hooks.slack.com/services/SECRET-URL`.
+
+> Keep the secrets file out of the template directory, otherwise it is copied to
+> `/etc/alertmanager` like any other file.
+
+| Variable       | Default                 | Description                      |
+|----------------|-------------------------|----------------------------------|
+| `TPL_DIR`      | `/etc/alertmanager.tpl` | Template directory               |
+| `CONF_DIR`     | `/etc/alertmanager`     | Rendered configuration directory |
+| `SECRETS_FILE` | `/secrets`              | Secrets file                     |
 
 ### Run with a plain config
 
