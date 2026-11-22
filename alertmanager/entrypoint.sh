@@ -41,7 +41,8 @@ render_templates() {
         echo "No template directory: ${TPL_DIR}, skipping"
         return 0
     fi
-    find "${TPL_DIR}" -type f ! -path "${SECRETS_FILE}" | while IFS= read -r src; do
+    # Process every file and symlink except K8S specific artifacts ( ..data and timestamp folders)
+    find -L "${TPL_DIR}" -mindepth 1 -name '..*' -prune -o -type f ! -path "${SECRETS_FILE}" -print | while IFS= read -r src; do
         rel=${src#"${TPL_DIR}"/}
         dst="${CONF_DIR}/${rel}"
         mkdir -p "$(dirname "${dst}")"

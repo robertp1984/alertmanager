@@ -23,6 +23,7 @@ COPY entrypoint.sh /entrypoint.sh
 RUN chmod a+x /entrypoint.sh
 
 WORKDIR /alertmanager
+RUN chown nobody:nogroup /alertmanager
 
 USER nobody
 
